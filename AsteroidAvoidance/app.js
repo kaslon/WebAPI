@@ -9,7 +9,7 @@ app.use(bodyparser.json())
 app.use(bodyparser.urlencoded({extended:true}))
 app.use(express.json())
 
-mongoose.connect("mongodb://localhost:27017/gameEntries",{
+mongoose.connect("mongodb://localhost:27017/highScores",{
     useNewUrlParser:true
 }).then(function()
 {
@@ -20,8 +20,8 @@ mongoose.connect("mongodb://localhost:27017/gameEntries",{
 })
 
 // load in database templates
-require('./models/Game')
-var Game = mongoose.model('game')
+require('./models/Score')
+var Score = mongoose.model('score')
 
 // Basic code for saving an entry
 /*
@@ -36,37 +36,30 @@ game.save().then(function()
 
 
 // Example of a Post router
-app.post("/saveGame",function(req,res)
+app.post("/saveHighScore",function(req,res)
 {
     console.log("Request Made")
     console.log(req.body)
 
-    new Game(req.body).save().then(function()
+    new Score(req.body).save().then(function()
     {
-        res.redirect('gamelist.html')
+        res.redirect('scoreList.html')
     })
 
 })
 
-// get the data for the list
+// geet the data for the list
 app.get('/getData', function(req,res)
 {
-    Game.find({}).then(function(game)
+    Score.find({}).then(function(score)
     {
-        res.json({game})
+        res.json({score})
     })
 })
 
-// post route to delete game entry
-app.post('/deleteGame', function(req,res)
-{
-    console.log("Game Deleted", req.body._id)
-    Game.findByIdAndDelete(req.body._id).exec()
-    res.redirect('gamelist.html')
-})
 
 app.use(express.static(__dirname+"/views"))
-app.listen(3000, function()
+app.listen(5000, function()
 {
     console.log("Listening on port 3000")
 })
