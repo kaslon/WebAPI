@@ -174,7 +174,8 @@ Player.update = function()
             {
                 x:player.x,
                 y:player.y,
-                number:player.number
+                number:player.number,
+                id:player.id,
             })  
     }
 
@@ -258,7 +259,8 @@ io.sockets.on('connection', function(socket)
     //add something to SocketList
     SocketList[socket.id] = socket
     Player.onConnect(socket)
-
+    // send the id to the client
+    socket.emit('connected', socket.id)
 
 
 

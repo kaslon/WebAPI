@@ -5,8 +5,15 @@ var chatText = document.getElementById('chat-text')
 var chatInput = document.getElementById('chat-input')
 var chatForm = document.getElementById('chat-form')
 ctx.font = "30px Arial"
-var px
-var py
+var px = 0
+var py = 0
+var clientId;
+
+socket.on('connected', function(data)
+{
+    clientId = data;
+    console.log(clientId)
+})
 
 //event listeners for keypresses and mouse clicks / mouse position
 document.addEventListener('keydown', keyPressDown)
@@ -67,10 +74,9 @@ function mouseUp(e)
 
 function mouseMove(e)
 {
-    var x = -canvas.width/2 + e.clientX
-    //var x = -px[i] + e.clientX
-    var y = -canvas.height/2 + e.clientY
-    //var y = player.y + e.clientY
+    var x = -px + e.clientX - 8;
+    var y = -py + e.clientY - 96;
+    
     var angle = Math.atan2(y,x) / Math.PI * 180
     socket.emit('keypress', {inputId: 'mouseAngle', state: angle})
 }
@@ -80,7 +86,11 @@ socket.on('newPosition', function(data)
     ctx.clearRect(0,0, canvas.width, canvas.height)
     for(var i = 0; i < data.player.length; i++)
     {
-        
+        if(clientId == data.player[i].id)
+        {
+            px = data.player[i].x
+            py = data.player[i].y
+        }   
         ctx.fillText(data.player[i].number, data.player[i].x, data.player[i].y)
     }   
     for(var i = 0; i < data.bullet.length; i++)
