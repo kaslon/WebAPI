@@ -7,6 +7,25 @@ var mongoose = require('mongoose')
 require('./db')
 require('./models/Player')
 
+// game declarations
+
+//var timer = requestAnimationFrame(main);
+var gravity = 1;
+var asteroids = new Array();
+var numAsteroids = 10;
+var gameOver = true;
+var score = 0;
+var gameStates = [];
+var currentState = 0;
+var isPlaying = false
+var playerCount = 0
+
+
+function randomRange(high, low){
+    return Math.random() * ( high - low) + low;
+}
+
+
 var PlayerData = mongoose.model('player')
 
 //file communication
@@ -23,7 +42,6 @@ serv.listen(3000, function()
 })
 
 var SocketList = {}
-//var PlayerList = {}
 
 // class for a gameobject
 var GameObject = function()
@@ -40,14 +58,6 @@ var GameObject = function()
     self.update = function()
     {
         self.updatePosition()
-    }
-
-    self.shoot = function(angle)
-    {
-        var b = Bullet(self.id, angle)
-        b.x = self.x
-        b.y = self.y
-
     }
 
     self.updatePosition = function()
@@ -71,10 +81,15 @@ var Player = function(id)
     self.right = false
     self.left = false
     self.up = false
-    self.down = false
-    self.attack = false
-    self.mouseAngle = 0
-    self.speed = 10
+    //self.down = false
+    //self.attack = false
+    //self.mouseAngle = 0
+    self.speed = 5
+    self.width = 20
+    self.height = 20
+    self.vx = 0
+    self.vy = 0
+    self.flameLength = 30
 
     var playerUpdate = self.update
 
@@ -82,24 +97,17 @@ var Player = function(id)
     {
         self.updateSpeed()
         playerUpdate()
-        if(self.attack)
-        {
-            self.shoot(self.mouseAngle)
-        }
-        // if(Math.random() < 0.1)
-        // {
-        //     self.shoot(Math.random() * 360)
-        // }
+
     }
 
     self.updateSpeed = function()
     {
         // left and right
-        if(self.right)
+        if(self.right && self.x < 780)
         {
             self.spX = self.speed
         }
-        else if(self.left)
+        else if(self.left && self.x > 0)
         {
             self.spX = -self.speed
         }
@@ -108,17 +116,21 @@ var Player = function(id)
             self.spX = 0;
         }
         // up and down
-        if(self.up)
+        if(self.up && self.y > 20)
         {
             self.spY = -self.speed
         }
-        else if(self.down)
-        {
-            self.spY = self.speed
-        }
         else
         {
-            self.spY = 0;
+            if(self.y < 590)
+            {
+                self.spY = 3;
+            }
+            else
+            {
+                self.spY = 0
+            }
+
         }
     }
 
@@ -132,6 +144,7 @@ Player.list = {}
 // list of functions for player connection and movement
 Player.onConnect = function(socket)
 {
+    playerCount++
     var player = new Player(socket.id)
         // receive the player inputs
         socket.on('keypress', function(data)
@@ -140,10 +153,7 @@ Player.onConnect = function(socket)
             {
                 player.up = data.state
             }
-            if(data.inputId === 'down')
-            {
-                player.down = data.state
-            }
+
             if(data.inputId === 'left')
             {
                 player.left = data.state
@@ -152,19 +162,22 @@ Player.onConnect = function(socket)
             {
                 player.right = data.state
             }
-            if(data.inputId === 'attack')
+            if(data.inputId === 'enter')
             {
-                player.attack = data.state
+                // has the game already begun?
+                if(isPlaying == false)
+                {
+                    gameStart()
+                }
+                isPlaying = true;
             }
-            if(data.inputId === 'mouseAngle')
-            {
-                player.mouseAngle = data.state
-            }
+
         })
 }
 
 Player.onDisconnect = function(socket)
 {
+    playerCount--
     delete Player.list[socket.id]
 }
 
@@ -187,69 +200,100 @@ Player.update = function()
     return pack
 }
 
-var Bullet = function(parent, angle)
+var Asteroid = function()
 {
     var self = GameObject()
+    self.radius = randomRange(15,2)
+    self.x = randomRange(0 + self.radius, 800 - self.radius); 
+    self.y = randomRange(0 + self.radius, 600 - self.radius)- 600;
+    // self.radius = 10
+    // self.x = 10
+    // self.y = 0
+
     self.id = Math.random()
-    self.spX = Math.cos(angle/180 * Math.PI) * 10
-    self.spY = Math.sin(angle/180 * Math.PI) * 10
-    self.parent = parent
+    self.spX = 0//randomRange(-5,-10);
+    self.spY = randomRange(1,5);
+    self.color = "white"
+    self.score = 0
 
-    self.timer = 0;
-    self.toRemove = false
-
-    var bulletUpdate = self.update
+    var asteroidUpdate = self.update
     self.update = function()
     {
-        if(self.timer++ > 100)
-        {
-            self.toRemove = true
-        }
-        bulletUpdate()
-        for(var i in Player.list)
-        {
-            var p = Player.list[i]
-            if(self.getDist(p) < 25 && self.parent !== p.id)
-            {
-                self.toRemove = true
-                // damage player hp
-            } 
-        }
+        asteroidUpdate()
+ 
     }
-    Bullet.list[self.id] = self
+    Asteroid.list[self.id] = self
     return self
 }
 
-Bullet.list = {}
+Asteroid.list = {}
 
-Bullet.update = function()
+Asteroid.update = function()
 {
-    //if(Math.random() < 0.1)
-    //{
-    //    Bullet(Math.random() * 360)
-    //}
     var pack = []
-    for(var i in Bullet.list)
+    for(var i in Asteroid.list)
     {
-        var bullet = Bullet.list[i]
-        bullet.update()   
+        var asteroid = Asteroid.list[i]
+        asteroid.update()   
 
-        if(bullet.toRemove)
+
+
+        //checks for collision between asteroid and ship
+        for(var i in Player.list)
         {
-            delete Bullet.list[i]
+            var dX = Player.list[i].x - asteroid.x;
+            var dY = Player.list[i].y - asteroid.y;
+            var dist = Math.sqrt((dX*dX)+(dY*dY));
+
+            if(detectCollision(dist, (Player.list[i].height/2 + asteroid.radius)))
+            {
+                // gameOver = true
+                console.log("Collision!")
+                delete Player.list[i]
+                playerCount--
+
+                if(playerCount <= 0)
+                {
+                    // all players are dead
+                    // end the game
+                    console.log("Game Over")
+                }
+
+            }
+        }
+
+    
+
+
+        if(asteroid.toRemove)
+        {
+            delete Asteroid.list[i]
         }
         else
         {
             pack.push(
-                {
-                    x:bullet.x,
-                    y:bullet.y,
-                })  
+            {
+                x:asteroid.x,
+                y:asteroid.y,
+                radius:asteroid.radius,
+                score:asteroid.score
+            })  
         }
  
     }
 
     return pack
+}
+
+
+Asteroid.Create = function()
+{
+    //var asteroid = new Asteroid()
+
+    for (var i = 0; i < numAsteroids; i++) 
+    {
+        asteroids[i] = new Asteroid();
+    }
 }
 
 // ======= User Collection Setup
@@ -265,7 +309,6 @@ var isPasswordValid = function(data,cb)
 {
     PlayerData.findOne({username:data.username}, function(err, username)
     {
-        //console.log(username.password, data.password)
         cb(data.password == username.password)
     })
 
@@ -283,18 +326,18 @@ var isUsernameTaken = function(data, cb)
         {
             cb(true)
         }
-        //cb(data.username == username.username)
     })
-   // return Players[data.username]
 }
 
 var addUser = function(data)
 {
-    //Players[data.username] = data.password
     new PlayerData(data).save()
 }
 
-
+function gameStart()
+{
+    Asteroid.Create()
+}
 
 // connection to game
 io.sockets.on('connection', function(socket)
@@ -302,9 +345,6 @@ io.sockets.on('connection', function(socket)
     console.log("Socket Connected")
 
     socket.id = Math.random()
-    //socket.x = 0
-    //socket.y = Math.floor(Math.random()*600)
-    //socket.number = Math.floor(Math.random()*10)
 
     //add something to SocketList
     SocketList[socket.id] = socket
@@ -315,22 +355,14 @@ io.sockets.on('connection', function(socket)
     // signIn event
     socket.on("signIn", function(data)
     {
-
-        // if(isPasswordValid(data))
-        // {
-        //     Player.onConnect(socket)
-        //     socket.emit('connected', socket.id)
-        //     socket.emit("signInResponse", {success:true})
-        // }
-        // else
-        // {
-        //     socket.emit("signInResponse", {success:false})
-        // }
         isPasswordValid(data, function(res)
         {
             if(res)
             {
                 Player.onConnect(socket)
+
+                
+
                 socket.emit('connected', socket.id)
                 socket.emit('signInResponse', {success: true})
                 
@@ -347,15 +379,6 @@ io.sockets.on('connection', function(socket)
     // signUp event
     socket.on('signUp', function(data)
     {
-        // if(isUsernameTaken(data))
-        // {
-        //     socket.emit("signUpResponse", {success:false})
-        // }
-        // else
-        // {
-        //     addUser(data)
-        //     socket.emit("signUpResponse", {success:true})
-        // }
         isUsernameTaken(data, function(res)
         {
             if(res)
@@ -397,29 +420,34 @@ io.sockets.on('connection', function(socket)
         socket.emit('evalResponse', res)
     })
 
-    /// old examples from wednesday 1/27
-   // socket.on('sendMsg', function(data)
-    //{
-    //    console.log(data.message)
-    //})
-   // socket.on('sendBtnMsg',function(data)
-    //{
-    //    console.log(data.message)
-    //})
-
-   // socket.emit('messageFromServer',
-   // {
-    //    message:'Hey Mat Welcome to the Party'
-   // })
 })
+
+//---Collision Detection Function---
+function detectCollision(distance, calcDistance){
+    return distance < calcDistance;
+}
 
 // setup update loop
 setInterval(function()
 {
+    for(var i in asteroids)
+    {
+        if(asteroids[i].y > 625)
+        {
+            asteroids[i].spY = randomRange(1,5)
+            asteroids[i].radius = randomRange(15,2)
+            asteroids[i].x = randomRange(0 + asteroids[i].radius, 800 - asteroids[i].radius); 
+            asteroids[i].y = randomRange(0 + asteroids[i].radius, 600 - asteroids[i].radius)- 600;
+            asteroids[i].score++
+
+        }
+    }
+
+
     var pack = 
     {
         player: Player.update(),
-        bullet: Bullet.update()
+        asteroid: Asteroid.update()
 
     }
     //var pack = Player.update()
@@ -433,3 +461,21 @@ setInterval(function()
     }
 
 }, 1000/30)
+
+
+
+
+//--Score Timer Function---
+function scoreTimer(){
+    if(gameOver == false){
+        score++;
+        //using modulus divide the score by 5 and inf the remainder is zero addastteroids
+        if(score % 5 == 0){
+            numAsteroids += 5;
+            console.log(numAsteroids);
+        }
+       // console.log(score);
+        setTimeout(scoreTimer, 1000);
+    }
+}
+

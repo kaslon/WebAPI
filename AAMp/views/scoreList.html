@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mongoose Lab Example</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="container">
+        <h1>Score List</h1>
+        <nav>
+            <a href="index.html">Game</a>
+        </nav>
+        <script>
+            fetch('/getData').then(function(scores)
+            {
+                scores.json().then(function(thescores)
+                {
+                    console.log(thescores)
+                    for(let score of thescores.score)
+                    {
+                        // this draws the element 
+                        var scoreElement = document.createElement('p')
+                        scoreElement.innerHTML = score.name + " Score: "  + score.score
+                        document.getElementById('container').appendChild(scoreElement)
+                        
+                    
+
+                    }
+                })
+            })
+        </script>
+    </div>
+</body>
+</html>
